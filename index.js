@@ -121,3 +121,11 @@ async function run() {
             const result = await usersCollection.updateOne(query, updatedDoc);
             res.send(result);
         });
+
+               // decorator apis
+        app.get("/decorators", async(req, res) => {
+            const query = {role: "decorator"};
+            const result = await usersCollection.find(query).toArray();
+            res.send(result);
+        });
+        
