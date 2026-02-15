@@ -128,4 +128,103 @@ async function run() {
             const result = await usersCollection.find(query).toArray();
             res.send(result);
         });
+
+               // decoration services apis
+        app.get("/services", async(req, res) => {
+            const {searchText = "", sort = "service_name", order = "asc"} = req.query;
+            const sortOption = {};
+            sortOption[sort] = order === "asc" ? 1 : -1;
+            const query = {};
+            if(searchText){
+                query.service_name = {$regex: searchText, $options: "i"};
+            }
+            const result = await servicesCollection.find(query).sort(sortOption).toArray();
+            res.send(result);
+        });
+
+        app.get("/services/decorators", verifyJWT, verifyDecorator, async(req, res) => {
+            const {decoratorEmail} = req.query;
+            const query = {};
+            if(decoratorEmail){
+                query.decoratorEmail = decoratorEmail;
+            }
+            const result = await bookingsCollection.find(query).toArray();
+            res.send(result);
+        });
+
+        app.get("/services/booked", async(req, res) => {
+            const pipeline = [
+                {
+                    $group: {
+                        _id: "$service_name",
+                        count: {
+                            $sum: 1
+                        }
+                    },
+                },
+                {
+                    $project: {
+                        service_name: "$_id",
+                        count: 1
+                    }
+                }
+            ];
+            const result = await bookingsCollection.aggregate(pipeline).toArray();
+            res.send(result);
+        });
+
+        app.patch("/services/decorators/:id", verifyJWT, verifyDecorator, async(req, res) => {
+            const {id} = req.params;
+            const {service_status} = req.body;
+            const query = {_id: new ObjectId(id)};
+            const update = {
+                $set: {
+                    service_status: service_status
+                }
+            };
+            const result = await bookingsCollection.updateOne(query, update);
+            if(service_status === "completed"){
+                const decoratorEmail = req.tokenEmail;
+                const decoratorQuery = { email: decoratorEmail };
+                const updateDecorator = {
+                    $set: {
+                        work_status: "available"
+                    }
+                }
+                const decoratorResult = await usersCollection.updateOne(decoratorQuery, updateDecorator);
+                return res.send(decoratorResult);
+            }
+            res.send(result);
+        });
+
+        app.get("/service/:id", async(req, res) => {
+            const {id} = req.params;
+            const query = {_id: new ObjectId(id)};
+            const result = await servicesCollection.findOne(query);
+            res.send(result);
+        });
+
+        app.post("/services", verifyJWT, verifyAdmin, async(req, res) => {
+            const service = req.body;
+            const result = await servicesCollection.insertOne(service);
+            res.send(result);
+        });
+
+        app.patch("/services/:id", verifyJWT, verifyAdmin, async (req, res) => {
+            const {id} = req.params;
+            const query = {_id: new ObjectId(id)};
+            const updatedService = req.body;
+            const update = {
+                $set: updatedService
+            }
+            const result = await servicesCollection.updateOne(query, update);
+            res.send(result);
+        });
+
+        app.delete("/services/:id", verifyJWT, verifyAdmin, async (req, res) => {
+            const {id} = req.params;
+            const query = {_id: new ObjectId(id)};
+            const result = await servicesCollection.deleteOne(query);
+            res.send(result);
+        });
         
