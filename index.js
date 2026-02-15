@@ -64,3 +64,60 @@ async function run() {
             }
             next();
         }
+
+        
+        // user apis
+        app.get('/users', verifyJWT, verifyAdmin, async (req, res) => {
+            const {limit = 0, skip = 0, role, work_status} = req.query;
+            const adminEmail = req.tokenEmail;
+            const query = {};
+            query.email = {$ne: adminEmail};
+            if(role) query.role = role;
+            if(work_status) query.work_status = work_status;
+            const result = await usersCollection.find(query).limit(Number(limit)).skip(Number(skip)).toArray();
+            const count = await usersCollection.countDocuments(query);
+            res.send({result, total: count});
+        });
+
+        app.get('/user/role', verifyJWT, async (req, res) => {
+            const result = await usersCollection.findOne({ email: req.tokenEmail })
+            res.send({ role: result?.role })
+        })
+
+        app.post("/users", async(req, res) => {
+            const user = req.body;
+            const query = {};
+            user.role = "user";
+            user.createdAt = new Date().toISOString();
+            user.last_loggedIn = new Date().toISOString();
+            if(user.email){
+                query.email = user.email;
+            }
+
+            const userExists = await usersCollection.findOne(query);
+            if(userExists){
+                const updatedResult = await usersCollection.updateOne(query, {
+                    $set: {
+                        last_loggedIn: new Date().toISOString(),
+                    },
+                });
+                return res.send(updatedResult);
+            }
+
+            const result = await usersCollection.insertOne(user);
+            res.send(result);
+        });
+
+        app.patch("/user/:id/role", verifyJWT, verifyAdmin, async(req, res) => {
+            const {id} = req.params;
+            const {role} = req.body;
+            const query = {_id: new ObjectId(id)};
+            const updatedDoc = {
+                $set: {
+                    role: role,
+                    work_status: "available"
+                }
+            };
+            const result = await usersCollection.updateOne(query, updatedDoc);
+            res.send(result);
+        });
