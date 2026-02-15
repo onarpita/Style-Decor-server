@@ -227,4 +227,73 @@ async function run() {
             const result = await servicesCollection.deleteOne(query);
             res.send(result);
         });
-        
+
+               // booking api
+        app.get("/bookings", verifyJWT, async(req, res) => {
+            const { limit = 0, skip = 0, service_status, sort = "booking_date", order = "desc" } = req.query;
+            const sortOption = {};
+            sortOption[sort] = order === "asc" ? 1 : -1;
+            const query = {};
+            if(service_status) query.service_status = service_status;
+            const result = await bookingsCollection.find(query).sort(sortOption).limit(Number(limit)).skip(Number(skip)).toArray();
+            const count = await bookingsCollection.countDocuments(query);
+            res.send({result, total: count});
+        });
+
+        app.get("/user-bookings", verifyJWT, async(req, res) => {
+            const email = req.tokenEmail;
+            const query = {email};
+            const result = await bookingsCollection.find(query).toArray();
+            res.send(result);
+        });
+
+        app.post("/booking", verifyJWT, async(req, res) => {
+            const booking = req.body;
+            booking.payment_status = "unpaid";
+            booking.service_status = "pending";
+            booking.created_at = new Date().toISOString();
+            const result = await bookingsCollection.insertOne(booking);
+            res.send(result);
+        });
+
+        app.patch("/booking/:id", verifyJWT, async(req, res) => {
+            const {id} = req.params;
+            const query = {_id: new ObjectId(id)};
+            const updatedBooking = req.body;
+            const update = {
+                $set: updatedBooking
+            }
+            const result = await bookingsCollection.updateOne(query, update);
+            res.send(result);
+        });
+
+        app.patch("/booking/:id/assigned", verifyJWT, verifyAdmin, async(req, res) => {
+            const {id} = req.params;
+            const query = {_id: new ObjectId(id)};
+            const {decoratorId, decoratorName, decoratorEmail} = req.body;
+            const update = {
+                $set: {
+                    service_status: "assigned",
+                    decoratorId: decoratorId,
+                    decoratorName: decoratorName,
+                    decoratorEmail: decoratorEmail
+                }
+            }
+            const result = await bookingsCollection.updateOne(query, update);
+
+            const decoratorQuery = {_id: new ObjectId(decoratorId)};
+            const decoratorUpdate = {
+                $set: {
+                    work_status: "in_service"
+                }
+            }
+            const decoratorResult = await usersCollection.updateOne(decoratorQuery, decoratorUpdate);
+            res.send(decoratorResult);
+        });
+
+        app.delete("/booking/:id", verifyJWT, async(req, res) => {
+            const {id} = req.params;
+            const query = {_id: new ObjectId(id)};
+            const result = await bookingsCollection.deleteOne(query);
+            res.send(result);
+        });
